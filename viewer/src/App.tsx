@@ -31,8 +31,10 @@ import {
   type PlanSketchCommitOptions,
 } from './types/planLayout'
 import {
+  downloadPlanBundleJson,
   loadElevationSketchFromLocalStorage,
   loadSketchFromLocalStorage,
+  readPlanBundleOrSketchFromFile,
   saveElevationSketchToLocalStorage,
   saveSketchToLocalStorage,
 } from './lib/planLayoutStorage'
@@ -190,6 +192,39 @@ export default function App() {
     implSketchRef.current = next
     setImplSketch(next)
   }, [])
+
+  const applyPlanBundle = useCallback(
+    (floor1: PlanLayoutSketch, elevations: Record<ElevationFace, PlanLayoutSketch>) => {
+      implSketchRef.current = floor1
+      setImplSketch(floor1)
+      setImplUndoStack([])
+      setImplRedoStack([])
+      implUndoStackRef.current = []
+      implRedoStackRef.current = []
+      elevSketchesRef.current = elevations
+      setElevSketches(elevations)
+      const emptyU = emptyElevUndoRedo()
+      setElevUndoStack(emptyU)
+      setElevRedoStack(emptyU)
+      elevUndoStackRef.current = emptyU
+      elevRedoStackRef.current = emptyU
+    },
+    [],
+  )
+
+  const importPlanFromFile = useCallback(
+    async (file: File): Promise<boolean> => {
+      const r = await readPlanBundleOrSketchFromFile(file)
+      if (!r) return false
+      if (r.kind === 'bundle') {
+        applyPlanBundle(r.floor1, r.elevations)
+        return true
+      }
+      commitImplSketch(r.sketch)
+      return true
+    },
+    [applyPlanBundle, commitImplSketch],
+  )
 
   const undoImplSketch = useCallback(() => {
     const stack = implUndoStackRef.current
@@ -667,6 +702,10 @@ export default function App() {
               sketch={
                 floor1Sheet ? implSketch : elevSketches[elevationSheet!.face]
               }
+              onDownloadFullPlan={() =>
+                downloadPlanBundleJson({ floor1: implSketch, elevations: elevSketches })
+              }
+              onImportFullPlan={importPlanFromFile}
               onSketchChange={
                 floor1Sheet
                   ? commitImplSketch

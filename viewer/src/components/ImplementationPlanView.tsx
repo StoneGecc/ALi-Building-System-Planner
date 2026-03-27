@@ -76,6 +76,10 @@ interface ImplementationPlanViewProps {
   /** Floor 1 layout sketch — source of truth for grid spacing (elevations use the same Δ). */
   layoutSketch: PlanLayoutSketch
   onLayoutSketchChange: (next: PlanLayoutSketch, opts?: PlanSketchCommitOptions) => void
+  /** Save full project (Floor 1 + all elevation sketches) as one JSON file. */
+  onDownloadFullPlan?: () => void
+  /** Load that file back, or a legacy Floor-1-only JSON export. Returns false if invalid. */
+  onImportFullPlan?: (file: File) => Promise<boolean>
   className?: string
 }
 
@@ -96,6 +100,8 @@ export function ImplementationPlanView({
   onBuildingHeightInChange,
   layoutSketch,
   onLayoutSketchChange,
+  onDownloadFullPlan,
+  onImportFullPlan,
   className,
 }: ImplementationPlanViewProps) {
   const [mepItems, setMepItems] = useState<MepItem[]>([])
@@ -166,7 +172,7 @@ export function ImplementationPlanView({
   )
 
   const mepInputRef = useRef<HTMLInputElement>(null)
-  const jsonInputRef = useRef<HTMLInputElement>(null)
+  const planJsonInputRef = useRef<HTMLInputElement>(null)
   const traceOverlayInputRef = useRef<HTMLInputElement>(null)
 
   const [traceOverlayEditMode, setTraceOverlayEditMode] = useState(false)
@@ -406,6 +412,14 @@ export function ImplementationPlanView({
   const mepItemsForActiveSheet = useMemo(
     () => filterMepItemsForSheet(floor1Sheet, mepItems),
     [floor1Sheet, mepItems],
+  )
+
+  const vectorExportBasename = useMemo(
+    () =>
+      planViewContext.kind === 'floor1'
+        ? `floor1-${planViewContext.sheet.id}`
+        : `elevation-${planViewContext.sheet.id}`,
+    [planViewContext],
   )
 
   useEffect(() => {
@@ -697,11 +711,20 @@ export function ImplementationPlanView({
     setActiveSystemId(orderedSystems[0]?.id ?? '')
   }, [orderedSystems, floor1Sheet.visiblePlaceModes])
 
-  const importJson = useCallback(
+  const onPlanJsonFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0]
       e.target.value = ''
       if (!f) return
+      if (onImportFullPlan) {
+        const ok = await onImportFullPlan(f)
+        if (!ok) {
+          alert(
+            'Could not read that file. Use a plan file saved from this app (JSON), or a Floor 1–only layout export.',
+          )
+        }
+        return
+      }
       const loaded = await readSketchFromFile(f)
       if (!loaded) {
         alert('Invalid layout JSON.')
@@ -709,7 +732,7 @@ export function ImplementationPlanView({
       }
       onSketchChange(loaded)
     },
-    [onSketchChange],
+    [onImportFullPlan, onSketchChange],
   )
 
   const onTraceOverlayFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1343,20 +1366,59 @@ export function ImplementationPlanView({
             </section>
 
             <section className="rounded-lg border border-border bg-white p-4 shadow-sm space-y-3">
-              <h3 className={setupSectionTitle}>Sketch import / export</h3>
-              <p className={setupHelp}>
-                Save the full layout sketch (grid, site, walls, floor, MEP lines) as JSON, or load a previously
-                exported file. Import replaces the current sketch.
-              </p>
-              <input ref={jsonInputRef} type="file" accept=".json,application/json" className="hidden" onChange={importJson} />
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => jsonInputRef.current?.click()} className={btnIdle}>
-                  Import JSON…
-                </button>
-                <button type="button" onClick={() => downloadSketchJson(sketch)} className={btnIdle}>
-                  Export JSON
-                </button>
-              </div>
+              <h3 className={setupSectionTitle}>
+                {onDownloadFullPlan && onImportFullPlan ? 'Save & open plan' : 'Sketch import / export'}
+              </h3>
+              {onDownloadFullPlan && onImportFullPlan ? (
+                <>
+                  <p className={setupHelp}>
+                    Save your work to a JSON file (Floor 1 layout plus all elevation sketches). Open the same file
+                    here anytime—on this device or another—to continue editing. Your browser also keeps a local copy
+                    while you stay on this site.
+                  </p>
+                  <input
+                    ref={planJsonInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    onChange={onPlanJsonFile}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => planJsonInputRef.current?.click()} className={btnIdle}>
+                      Open plan from file…
+                    </button>
+                    <button type="button" onClick={onDownloadFullPlan} className={btnIdle}>
+                      Save plan to file
+                    </button>
+                  </div>
+                  <p className={setupHelp}>
+                    Older <span className="font-mono">floor-1-layout.json</span> exports still work—they load into the
+                    Floor 1 layout.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className={setupHelp}>
+                    Save the full layout sketch (grid, site, walls, floor, MEP lines) as JSON, or load a previously
+                    exported file. Import replaces the current sketch.
+                  </p>
+                  <input
+                    ref={planJsonInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    onChange={onPlanJsonFile}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => planJsonInputRef.current?.click()} className={btnIdle}>
+                      Import JSON…
+                    </button>
+                    <button type="button" onClick={() => downloadSketchJson(sketch)} className={btnIdle}>
+                      Export JSON
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
           </div>
         </div>
@@ -1401,6 +1463,7 @@ export function ImplementationPlanView({
               buildingDimensions={buildingDimensions}
               sketch={planSketchForEditor}
               onSketchChange={onPlanSketchCommit}
+              vectorExportBasename={vectorExportBasename}
               activeCatalog={activeCatalog}
               activeSystemId={activeSystemId}
               placeMode={placeMode}

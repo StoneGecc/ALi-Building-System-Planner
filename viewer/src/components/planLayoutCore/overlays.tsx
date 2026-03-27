@@ -142,7 +142,7 @@ export function GridPathDimensionOverlay({
         y2={y2}
         stroke={stroke}
         strokeWidth={dashed ? 2.25 : 2.75}
-        strokeLinecap="square"
+        strokeLinecap="butt"
         strokeDasharray={dash}
       />
     )
@@ -162,7 +162,7 @@ export function GridPathDimensionOverlay({
         y2={ps.y + tk}
         stroke={stroke}
         strokeWidth={1.15}
-        strokeLinecap="square"
+        strokeLinecap="butt"
       />
       <line
         x1={pe.x - tk}
@@ -171,7 +171,7 @@ export function GridPathDimensionOverlay({
         y2={pe.y + tk}
         stroke={stroke}
         strokeWidth={1.15}
-        strokeLinecap="square"
+        strokeLinecap="butt"
       />
       <text
         x={mx}
@@ -256,7 +256,7 @@ export function AnnotationKeyHighlightOverlay({
                 stroke={stroke}
                 strokeOpacity={strokeOpacity}
                 strokeWidth={sw}
-                strokeLinecap="square"
+                strokeLinecap="butt"
               />,
             ]
           })
@@ -279,7 +279,7 @@ export function AnnotationKeyHighlightOverlay({
                 stroke={stroke}
                 strokeOpacity={strokeOpacity}
                 strokeWidth={sw * 0.9}
-                strokeLinecap="square"
+                strokeLinecap="butt"
                 strokeDasharray="5 4"
               />,
             ]
@@ -305,7 +305,7 @@ export function AnnotationKeyHighlightOverlay({
               stroke={stroke}
               strokeOpacity={strokeOpacity}
               strokeWidth={sw + 1.5}
-              strokeLinecap="square"
+              strokeLinecap="butt"
               strokeDasharray="10 5"
             />,
           ]
@@ -325,7 +325,7 @@ export function AnnotationKeyHighlightOverlay({
               stroke={stroke}
               strokeOpacity={strokeOpacity}
               strokeWidth={sw * 1.15}
-              strokeLinecap="round"
+              strokeLinecap="butt"
               strokeDasharray="4 3"
             />,
           ]
@@ -383,7 +383,7 @@ export function GridReferencePathOverlay({
         y2={y2}
         stroke={stroke}
         strokeWidth={1.65}
-        strokeLinecap="square"
+        strokeLinecap="butt"
         strokeDasharray="4 3"
         opacity={0.92}
       />
@@ -430,7 +430,7 @@ export function SectionCutGraphic({
         y2={p2.y}
         stroke="#0f172a"
         strokeWidth={2.25}
-        strokeLinecap="square"
+        strokeLinecap="butt"
         strokeDasharray="10 5"
       />
       <polygon points={tri1} fill="#0f172a" stroke="none" />

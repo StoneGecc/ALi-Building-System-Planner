@@ -83,7 +83,6 @@ export function planEdgeStroke(
 
 /** SVG stroke-dasharray for plan edge kinds (empty = solid). */
 export function planEdgeStrokeDasharray(kind: PlacedGridEdge['kind']): string | undefined {
-  if (kind === 'door') return '2 5'
   if (kind === 'roof') return '10 4'
   if (kind === 'stairs') return '3 2'
   return undefined
@@ -155,6 +154,15 @@ export type PlanVisualProfile = {
 const DIM_ARCH = 0.38
 const DIM_MEP_OFF = 0.28
 const DIM_MEP_INTERIOR = 0.22
+
+/** Arch wall stroke opacity multiplier when a window or door occupies the same grid segment (another layer). */
+export const PLAN_ARCH_WALL_OPACITY_WITH_OPENING = 0.52
+
+/**
+ * Synthetic “wall thickness” under window/door strokes when no arch wall edge exists on that segment
+ * (e.g. opening replaced wall on the same layer). Scaled by `planPlacedEdgeOpacity`.
+ */
+export const PLAN_ARCH_WALL_GHOST_UNDER_OPENING = 0.44
 
 export function planPlacedEdgeOpacity(
   e: Pick<PlacedGridEdge, 'source' | 'systemId' | 'kind'>,

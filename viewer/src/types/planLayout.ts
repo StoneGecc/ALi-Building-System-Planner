@@ -9,12 +9,14 @@ export interface GridEdgeKey {
   axis: GridAxis
 }
 
-export type EdgeStrokeKind = 'wall' | 'run' | 'window' | 'door' | 'roof' | 'stairs'
+export type EdgeStrokeKind = 'wall' | 'run' | 'window' | 'door' | 'doorSwing' | 'roof' | 'stairs'
 
 export interface PlacedGridEdge extends GridEdgeKey {
   systemId: string
   source: 'arch' | 'mep'
   kind: EdgeStrokeKind
+  /** `doorSwing` only: hinge at start vs end node when placing. */
+  doorHinge?: 'start' | 'end'
 }
 
 /** Unit cell (i,j) fills the square from grid node (i,j) to (i+1,j+1) — flooring / zones. */
@@ -159,6 +161,31 @@ export function resolvedSiteInches(sketch: PlanLayoutSketch, d: BuildingDimensio
 
 export function edgeKeyString(e: GridEdgeKey): string {
   return `${e.axis}:${e.i}:${e.j}`
+}
+
+/** Whether an arch wall and an opening occupy the **same** grid segment (collinear only — not corner / T joints). */
+export function archWallAndOpeningEdgesMeet(
+  w: Pick<PlacedGridEdge, 'axis' | 'i' | 'j'>,
+  o: Pick<PlacedGridEdge, 'axis' | 'i' | 'j'>,
+): boolean {
+  return w.axis === o.axis && edgeKeyString(w) === edgeKeyString(o)
+}
+
+/** Geometry keys of arch wall edges that share a segment with a window/door/doorSwing (same grid edge only). */
+export function planArchWallEdgeKeysOverlappedByOpenings(edges: readonly PlacedGridEdge[]): Set<string> {
+  const openings = edges.filter(
+    (e) =>
+      (e.source ?? 'arch') === 'arch' &&
+      (e.kind === 'window' || e.kind === 'door' || e.kind === 'doorSwing'),
+  )
+  const out = new Set<string>()
+  for (const w of edges) {
+    if ((w.source ?? 'arch') !== 'arch' || w.kind !== 'wall') continue
+    if (openings.some((o) => archWallAndOpeningEdgesMeet(w, o))) {
+      out.add(edgeKeyString(w))
+    }
+  }
+  return out
 }
 
 export function parseEdgeKeyString(s: string): GridEdgeKey | null {

@@ -13,6 +13,7 @@ import type {
 import {
   PLAN_LAYOUT_VERSION,
   edgeKeyString,
+  emptySketch,
   footprintStorageKey,
   normalizeExclusiveArchFloorPaintCells,
 } from '../types/planLayout'
@@ -353,55 +354,137 @@ export function downloadSketchJson(sketch: PlanLayoutSketch, filename = 'floor-1
   URL.revokeObjectURL(url)
 }
 
+/** Full project: Floor 1 sketch plus all elevation sketches (one file to move between browsers). */
+export const PLAN_BUNDLE_FORMAT = 'building-plan-bundle' as const
+export const PLAN_BUNDLE_VERSION = 1 as const
+
+export function downloadPlanBundleJson(
+  payload: { floor1: PlanLayoutSketch; elevations: Record<ElevationFace, PlanLayoutSketch> },
+  filename = 'building-plan.json',
+): void {
+  const out = {
+    format: PLAN_BUNDLE_FORMAT,
+    bundleVersion: PLAN_BUNDLE_VERSION,
+    floor1: payload.floor1,
+    elevations: {
+      N: payload.elevations.N,
+      E: payload.elevations.E,
+      S: payload.elevations.S,
+      W: payload.elevations.W,
+    },
+  }
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export function parsePlanLayoutSketchFromJsonValue(raw: unknown): PlanLayoutSketch | null {
+  try {
+    if (!raw || typeof raw !== 'object') return null
+    const o = raw as PlanLayoutSketch
+    if (o.version !== PLAN_LAYOUT_VERSION || !Array.isArray(o.edges)) return null
+    if (!Number.isFinite(o.gridSpacingIn) || o.gridSpacingIn <= 0) return null
+    const rawCells = Array.isArray(o.cells) ? o.cells : []
+    const cells = normalizeExclusiveArchFloorPaintCells(rawCells)
+    const sw = Number(o.siteWidthIn)
+    const sh = Number(o.siteDepthIn)
+    const bh = Number(o.buildingHeightIn)
+    const rec = o as unknown as Record<string, unknown>
+    const measureRuns = parseMeasureRuns(o.measureRuns, o.gridSpacingIn)
+    const annotationGridRuns = parseAnnotationGridRuns(rec.annotationGridRuns)
+    const annotationLabels = parseAnnotationLabels(rec.annotationLabels)
+    const annotationSectionCuts = parseAnnotationSectionCuts(rec.annotationSectionCuts)
+    const traceOverlay = parseTraceOverlay(o.traceOverlay)
+    const roomByCell = parseRoomByCell(rec.roomByCell)
+    const roomBoundaryEdges = parseRoomBoundaryEdges(rec.roomBoundaryEdges)
+    const columns = parseColumns(rec.columns)
+    const egpj = Number(rec.elevationGroundPlaneJ)
+    const elevationLevelLines = parseElevationLevelLines(rec.elevationLevelLines)
+    return {
+      version: o.version,
+      gridSpacingIn: o.gridSpacingIn,
+      edges: o.edges,
+      cells,
+      ...(columns ? { columns } : {}),
+      ...(measureRuns ? { measureRuns } : {}),
+      ...(annotationGridRuns ? { annotationGridRuns } : {}),
+      ...(annotationLabels ? { annotationLabels } : {}),
+      ...(annotationSectionCuts ? { annotationSectionCuts } : {}),
+      ...(Number.isFinite(sw) && sw > 0 ? { siteWidthIn: sw } : {}),
+      ...(Number.isFinite(sh) && sh > 0 ? { siteDepthIn: sh } : {}),
+      ...(Number.isFinite(bh) && bh > 0 ? { buildingHeightIn: bh } : {}),
+      ...(traceOverlay ? { traceOverlay } : {}),
+      ...(roomBoundaryEdges ? { roomBoundaryEdges } : {}),
+      ...(roomByCell ? { roomByCell } : {}),
+      ...(Number.isFinite(egpj) && egpj >= 0 ? { elevationGroundPlaneJ: Math.round(egpj) } : {}),
+      ...(elevationLevelLines ? { elevationLevelLines } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
+export type PlanBundleImportResult =
+  | { kind: 'bundle'; floor1: PlanLayoutSketch; elevations: Record<ElevationFace, PlanLayoutSketch> }
+  | { kind: 'sketch'; sketch: PlanLayoutSketch }
+
+export function readPlanBundleOrSketchFromFile(file: File): Promise<PlanBundleImportResult | null> {
+  return new Promise((resolve) => {
+    const r = new FileReader()
+    r.onload = () => {
+      try {
+        const parsed = JSON.parse(String(r.result)) as unknown
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const rec = parsed as Record<string, unknown>
+          if (rec.format === PLAN_BUNDLE_FORMAT && rec.floor1 != null) {
+            const floor1 = parsePlanLayoutSketchFromJsonValue(rec.floor1)
+            if (!floor1) {
+              resolve(null)
+              return
+            }
+            const faces: ElevationFace[] = ['N', 'E', 'S', 'W']
+            const elevations = {} as Record<ElevationFace, PlanLayoutSketch>
+            const rawElev = rec.elevations
+            if (rawElev && typeof rawElev === 'object' && !Array.isArray(rawElev)) {
+              const er = rawElev as Record<string, unknown>
+              for (const f of faces) {
+                const chunk = er[f]
+                if (chunk != null) {
+                  const p = parsePlanLayoutSketchFromJsonValue(chunk)
+                  if (p) elevations[f] = p
+                }
+              }
+            }
+            for (const f of faces) {
+              if (!elevations[f]) elevations[f] = emptySketch(floor1.gridSpacingIn)
+            }
+            resolve({ kind: 'bundle', floor1, elevations })
+            return
+          }
+        }
+        const sketch = parsePlanLayoutSketchFromJsonValue(parsed)
+        if (sketch) resolve({ kind: 'sketch', sketch })
+        else resolve(null)
+      } catch {
+        resolve(null)
+      }
+    }
+    r.onerror = () => resolve(null)
+    r.readAsText(file)
+  })
+}
+
 export function readSketchFromFile(file: File): Promise<PlanLayoutSketch | null> {
   return new Promise((resolve) => {
     const r = new FileReader()
     r.onload = () => {
       try {
-        const o = JSON.parse(String(r.result)) as PlanLayoutSketch
-        if (o?.version !== PLAN_LAYOUT_VERSION || !Array.isArray(o.edges)) {
-          resolve(null)
-          return
-        }
-        if (!Number.isFinite(o.gridSpacingIn) || o.gridSpacingIn <= 0) {
-          resolve(null)
-          return
-        }
-        const rawCells = Array.isArray(o.cells) ? o.cells : []
-        const cells = normalizeExclusiveArchFloorPaintCells(rawCells)
-        const sw = Number(o.siteWidthIn)
-        const sh = Number(o.siteDepthIn)
-        const bh = Number(o.buildingHeightIn)
-        const rec = o as unknown as Record<string, unknown>
-        const measureRuns = parseMeasureRuns(o.measureRuns, o.gridSpacingIn)
-        const annotationGridRuns = parseAnnotationGridRuns(rec.annotationGridRuns)
-        const annotationLabels = parseAnnotationLabels(rec.annotationLabels)
-        const annotationSectionCuts = parseAnnotationSectionCuts(rec.annotationSectionCuts)
-        const traceOverlay = parseTraceOverlay(o.traceOverlay)
-        const roomByCell = parseRoomByCell(rec.roomByCell)
-        const roomBoundaryEdges = parseRoomBoundaryEdges(rec.roomBoundaryEdges)
-        const columns = parseColumns(rec.columns)
-        const egpj = Number(rec.elevationGroundPlaneJ)
-        const elevationLevelLines = parseElevationLevelLines(rec.elevationLevelLines)
-        resolve({
-          version: o.version,
-          gridSpacingIn: o.gridSpacingIn,
-          edges: o.edges,
-          cells,
-          ...(columns ? { columns } : {}),
-          ...(measureRuns ? { measureRuns } : {}),
-          ...(annotationGridRuns ? { annotationGridRuns } : {}),
-          ...(annotationLabels ? { annotationLabels } : {}),
-          ...(annotationSectionCuts ? { annotationSectionCuts } : {}),
-          ...(Number.isFinite(sw) && sw > 0 ? { siteWidthIn: sw } : {}),
-          ...(Number.isFinite(sh) && sh > 0 ? { siteDepthIn: sh } : {}),
-          ...(Number.isFinite(bh) && bh > 0 ? { buildingHeightIn: bh } : {}),
-          ...(traceOverlay ? { traceOverlay } : {}),
-          ...(roomBoundaryEdges ? { roomBoundaryEdges } : {}),
-          ...(roomByCell ? { roomByCell } : {}),
-          ...(Number.isFinite(egpj) && egpj >= 0 ? { elevationGroundPlaneJ: Math.round(egpj) } : {}),
-          ...(elevationLevelLines ? { elevationLevelLines } : {}),
-        })
+        const o = JSON.parse(String(r.result))
+        resolve(parsePlanLayoutSketchFromJsonValue(o))
       } catch {
         resolve(null)
       }

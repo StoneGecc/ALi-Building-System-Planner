@@ -188,7 +188,7 @@ export function LayerFastenerSpanOnDrawing({
           y2={my + capHalf}
           stroke={stroke}
           strokeWidth={capStroke}
-          strokeLinecap="square"
+          strokeLinecap="butt"
         />
         {extraWallTicks.map((xx, i) => (
           <line
@@ -199,7 +199,7 @@ export function LayerFastenerSpanOnDrawing({
             y2={my + capHalf * 0.55}
             stroke={stroke}
             strokeWidth={capStroke * 0.85}
-            strokeLinecap="square"
+            strokeLinecap="butt"
           />
         ))}
       </g>
@@ -280,7 +280,7 @@ export function LayerFastenerSpanOnDrawing({
         y2={yCap}
         stroke={stroke}
         strokeWidth={capStroke}
-        strokeLinecap="square"
+        strokeLinecap="butt"
       />
       {extraHorizTicks.map((yy, i) => (
         <line
@@ -291,7 +291,7 @@ export function LayerFastenerSpanOnDrawing({
           y2={yy}
           stroke={stroke}
           strokeWidth={capStroke * 0.85}
-          strokeLinecap="square"
+          strokeLinecap="butt"
         />
       ))}
       {fastenerMode === 'full' ? (
@@ -656,7 +656,7 @@ export function CutIndicatorLine({
   const d = horizontal
     ? `M ${x1} ${y1} L ${mid - h} ${y1} L ${mid - h} ${y1 - w} L ${mid + h} ${y1 + w} L ${mid + h} ${y1} L ${x2} ${y2}`
     : `M ${x1} ${y1} L ${x1} ${mid - h} L ${x1 - w} ${mid - h} L ${x1 + w} ${mid + h} L ${x1} ${mid + h} L ${x2} ${y2}`
-  return <path d={d} fill="none" stroke="#999" strokeWidth="0.6" strokeLinecap="square" strokeLinejoin="miter" />
+  return <path d={d} fill="none" stroke="#999" strokeWidth="0.6" strokeLinecap="butt" strokeLinejoin="miter" />
 }
 
 // ─── Section cut annotation ───────────────────────────────────────────────────

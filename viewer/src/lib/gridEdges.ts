@@ -327,6 +327,31 @@ export function edgeEndpointsCanvasPx(
   }
 }
 
+/**
+ * Wall mass for one grid segment as a filled band **centered on the grid line** (same as stroke geometry),
+ * so it lines up with the wall line rather than sitting on one side of it.
+ */
+export function archWallBandRectCanvasPx(
+  d: BuildingDimensions,
+  key: GridEdgeKey,
+  deltaIn: number,
+  systemId: string,
+): { x: number; y: number; width: number; height: number } {
+  const dIn = Math.max(1e-6, deltaIn)
+  const thIn = Math.max(1e-6, d.thicknessBySystem[systemId] ?? 6)
+  const bandIn = Math.min(thIn, dIn)
+  const s = d.planScale
+  const bw = bandIn * s
+  if (key.axis === 'h') {
+    const x = key.i * dIn * s
+    const yC = key.j * dIn * s
+    return { x, y: yC - bw / 2, width: dIn * s, height: bw }
+  }
+  const xC = key.i * dIn * s
+  const y = key.j * dIn * s
+  return { x: xC - bw / 2, y, width: bw, height: dIn * s }
+}
+
 /** Horizontal or vertical segment vs closed plan-inch rectangle (inclusive). */
 export function axisSegmentIntersectsPlanRect(
   ax: number,
